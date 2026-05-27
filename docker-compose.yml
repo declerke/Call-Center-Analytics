@@ -13,8 +13,7 @@ x-airflow-common: &airflow-common
     AIRFLOW__API_AUTH__JWT_SECRET: ${AIRFLOW__API_AUTH__JWT_SECRET}
     AIRFLOW__SCHEDULER__DAG_FILE_PROCESSOR_TIMEOUT: "300"
     DUCKDB_PATH: /opt/airflow/data/call_center.duckdb
-    KAGGLE_USERNAME: ${KAGGLE_USERNAME}
-    KAGGLE_KEY: ${KAGGLE_KEY}
+    KAGGLE_API_TOKEN: ${KAGGLE_API_TOKEN}
   volumes:
     - ./dags:/opt/airflow/dags
     - ./ingestion:/opt/airflow/ingestion

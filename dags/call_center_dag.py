@@ -30,8 +30,7 @@ POOL = "duckdb_pool"
 def _download_dataset(slug: str, dest_dir: str) -> None:
     os.makedirs(dest_dir, exist_ok=True)
     env = {**os.environ,
-           "KAGGLE_USERNAME": os.getenv("KAGGLE_USERNAME", ""),
-           "KAGGLE_KEY": os.getenv("KAGGLE_KEY", "")}
+           "KAGGLE_API_TOKEN": os.getenv("KAGGLE_API_TOKEN", "")}
     result = subprocess.run(
         ["kaggle", "datasets", "download", "-d", slug, "-p", dest_dir, "--unzip"],
         capture_output=True, text=True, env=env
