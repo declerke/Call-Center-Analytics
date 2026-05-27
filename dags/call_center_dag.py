@@ -7,7 +7,9 @@ Schedule: @weekly
 
 import sys
 import os
-import subprocess
+import io
+import zipfile
+import requests
 from datetime import datetime, timedelta
 
 from airflow import DAG
@@ -27,31 +29,41 @@ DBT_DIR = "/opt/airflow/dbt"
 POOL = "duckdb_pool"
 
 
-def _download_dataset(slug: str, dest_dir: str) -> None:
+def _download_dataset(owner: str, dataset: str, dest_dir: str) -> None:
+    """Download a Kaggle dataset via REST API — bypasses CLI protobuf issues with KGAT tokens."""
     os.makedirs(dest_dir, exist_ok=True)
-    env = {**os.environ,
-           "KAGGLE_API_TOKEN": os.getenv("KAGGLE_API_TOKEN", "")}
-    result = subprocess.run(
-        ["kaggle", "datasets", "download", "-d", slug, "-p", dest_dir, "--unzip"],
-        capture_output=True, text=True, env=env
-    )
-    print(result.stdout)
-    if result.returncode != 0:
-        raise RuntimeError(f"Kaggle download failed for {slug}:\n{result.stderr}")
-    print(f"Download complete → {dest_dir}")
+    username = os.getenv("KAGGLE_USERNAME", "")
+    key = os.getenv("KAGGLE_KEY", "")
+
+    url = f"https://www.kaggle.com/api/v1/datasets/download/{owner}/{dataset}"
+    print(f"Downloading {url}")
+
+    resp = requests.get(url, auth=(username, key), stream=True, allow_redirects=True, timeout=300)
+
+    if resp.status_code != 200:
+        raise RuntimeError(f"Kaggle API returned HTTP {resp.status_code} for {owner}/{dataset}.\n{resp.text[:500]}")
+
+    content = b"".join(resp.iter_content(chunk_size=65536))
+    print(f"Downloaded {len(content) / 1024:.1f} KB")
+
+    with zipfile.ZipFile(io.BytesIO(content)) as z:
+        z.extractall(dest_dir)
+    print(f"Extracted to {dest_dir}: {os.listdir(dest_dir)}")
 
 
 def _download_satvicoder():
     _download_dataset(
-        slug="satvicoder/call-center-data",
-        dest_dir="/opt/airflow/data/raw/satvicoder"
+        owner="satvicoder",
+        dataset="call-center-data",
+        dest_dir="/opt/airflow/data/raw/satvicoder",
     )
 
 
 def _download_pwc():
     _download_dataset(
-        slug="gayatriwagadre/pwc-call-centre-analysis",
-        dest_dir="/opt/airflow/data/raw/pwc"
+        owner="gayatriwagadre",
+        dataset="pwc-call-centre-analysis",
+        dest_dir="/opt/airflow/data/raw/pwc",
     )
 
 

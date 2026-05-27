@@ -5,9 +5,9 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
-from dash import html, dcc, callback, Input, Output, dash_table
+from dash import html, dcc, callback, Input, Output
 
-dash.register_page(__name__, path="/comparison", name="Centre Comparison", order=1)
+dash.register_page(__name__, path="/comparison", name="Operations Trends", order=1)
 
 DUCKDB_PATH = os.getenv("DUCKDB_PATH", "/opt/airflow/data/call_center.duckdb")
 NO_DATA = html.Div("Pipeline has not run yet.", className="text-warning mt-4 text-center")
@@ -22,103 +22,113 @@ def query(sql: str) -> pd.DataFrame:
 
 
 layout = dbc.Container([
-    html.H2("Centre Comparison", className="mt-3 mb-4"),
+    html.H2("Operations Trends", className="mt-3 mb-4"),
+    html.P("Satvicoder daily operations — 1,251 days of call centre KPIs with 7-day rolling averages.",
+           className="text-muted mb-4"),
     dbc.Row([
-        dbc.Col(dcc.Graph(id="comp-bar"), md=8),
-        dbc.Col(dcc.Graph(id="comp-radar"), md=4),
+        dbc.Col(dcc.Graph(id="ops-answer-rate"), md=6),
+        dbc.Col(dcc.Graph(id="ops-service-level"), md=6),
     ], className="mb-4"),
     dbc.Row([
-        dbc.Col(dcc.Graph(id="comp-fcr"), md=6),
-        dbc.Col(dcc.Graph(id="comp-sat"), md=6),
+        dbc.Col(dcc.Graph(id="ops-volume"), md=6),
+        dbc.Col(dcc.Graph(id="ops-abandonment"), md=6),
     ], className="mb-4"),
-    html.H5("Centre-Level Summary", className="mt-3 mb-2"),
-    html.Div(id="comp-table"),
-    dcc.Interval(id="comp-refresh", interval=60_000, n_intervals=0),
+    dbc.Row([
+        dbc.Col(dcc.Graph(id="ops-handle-time"), md=12),
+    ]),
+    dcc.Interval(id="ops-refresh", interval=60_000, n_intervals=0),
 ], fluid=True)
 
 
 @callback(
-    Output("comp-bar", "figure"),
-    Output("comp-radar", "figure"),
-    Output("comp-fcr", "figure"),
-    Output("comp-sat", "figure"),
-    Output("comp-table", "children"),
-    Input("comp-refresh", "n_intervals"),
+    Output("ops-answer-rate", "figure"),
+    Output("ops-service-level", "figure"),
+    Output("ops-volume", "figure"),
+    Output("ops-abandonment", "figure"),
+    Output("ops-handle-time", "figure"),
+    Input("ops-refresh", "n_intervals"),
 )
 def update(_):
-    df = query("SELECT * FROM marts.mart_agent_performance")
+    df = query("SELECT * FROM marts.mart_daily_operations ORDER BY day_index")
     if df.empty:
-        empty = px.bar(title="No data yet", template="plotly_dark")
-        return empty, empty, empty, empty, NO_DATA
+        empty = px.line(title="No data yet", template="plotly_dark")
+        return empty, empty, empty, empty, empty
 
-    summary = df.groupby("source_centre", as_index=False).agg(
-        total_calls=("total_calls", "sum"),
-        answer_rate_pct=("answer_rate_pct", "mean"),
-        fcr_rate_pct=("fcr_rate_pct", "mean"),
-        avg_satisfaction=("avg_satisfaction", "mean"),
-        avg_speed_of_answer_secs=("avg_speed_of_answer_secs", "mean"),
-    ).round(2)
-
-    melted = summary.melt(
-        id_vars="source_centre",
-        value_vars=["answer_rate_pct", "fcr_rate_pct", "avg_satisfaction"],
-        var_name="Metric", value_name="Value",
+    fig_answer = go.Figure()
+    fig_answer.add_trace(go.Scatter(
+        x=df["day_index"], y=df["answer_rate_pct"],
+        mode="lines", name="Daily", line={"color": "#636EFA", "width": 1, "dash": "dot"},
+        opacity=0.5,
+    ))
+    fig_answer.add_trace(go.Scatter(
+        x=df["day_index"], y=df["answer_rate_7d_avg"],
+        mode="lines", name="7-Day Avg", line={"color": "#636EFA", "width": 2},
+    ))
+    fig_answer.update_layout(
+        title="Answer Rate % — Daily vs 7-Day Rolling Average",
+        xaxis_title="Day Index", yaxis_title="Answer Rate %",
+        template="plotly_dark", legend={"orientation": "h"},
     )
-    metric_labels = {
-        "answer_rate_pct": "Answer Rate %",
-        "fcr_rate_pct": "FCR Rate %",
-        "avg_satisfaction": "Avg Satisfaction",
-    }
-    melted["Metric"] = melted["Metric"].map(metric_labels)
 
-    fig_bar = px.bar(
-        melted, x="Metric", y="Value", color="source_centre", barmode="group",
-        title="Key KPIs — Centre Comparison",
-        labels={"source_centre": "Centre", "Value": "Value"},
+    fig_sla = go.Figure()
+    fig_sla.add_trace(go.Scatter(
+        x=df["day_index"], y=df["service_level_pct"],
+        mode="lines", name="Daily", line={"color": "#00CC96", "width": 1, "dash": "dot"},
+        opacity=0.5,
+    ))
+    fig_sla.add_trace(go.Scatter(
+        x=df["day_index"], y=df["service_level_7d_avg"],
+        mode="lines", name="7-Day Avg", line={"color": "#00CC96", "width": 2},
+    ))
+    fig_sla.add_hline(y=80, line_dash="dash", line_color="red",
+                      annotation_text="80% SLA Target", annotation_position="top left")
+    fig_sla.update_layout(
+        title="Service Level % (20s) — Daily vs 7-Day Rolling Average",
+        xaxis_title="Day Index", yaxis_title="Service Level %",
+        template="plotly_dark", legend={"orientation": "h"},
+    )
+
+    fig_vol = px.bar(
+        df, x="day_index", y=["answered_calls", "abandoned_calls"],
+        title="Daily Call Volume — Answered vs Abandoned",
+        labels={"day_index": "Day", "value": "Calls", "variable": "Category"},
         template="plotly_dark",
+        barmode="stack",
     )
 
-    categories = ["Answer Rate %", "FCR Rate %", "Avg Sat ×20", "Speed Score"]
-    fig_radar = go.Figure()
-    for _, row in summary.iterrows():
-        fig_radar.add_trace(go.Scatterpolar(
-            r=[
-                row["answer_rate_pct"],
-                row["fcr_rate_pct"],
-                row["avg_satisfaction"] * 20,
-                max(0, 100 - row["avg_speed_of_answer_secs"]),
-            ],
-            theta=categories,
-            fill="toself",
-            name=row["source_centre"],
-        ))
-    fig_radar.update_layout(
-        polar={"radialaxis": {"visible": True, "range": [0, 100]}},
-        title="Performance Radar",
-        template="plotly_dark",
+    fig_aband = go.Figure()
+    fig_aband.add_trace(go.Scatter(
+        x=df["day_index"], y=df["abandonment_rate_pct"],
+        mode="lines", name="Daily", line={"color": "#EF553B", "width": 1, "dash": "dot"},
+        opacity=0.5,
+    ))
+    fig_aband.add_trace(go.Scatter(
+        x=df["day_index"], y=df["abandonment_rate_7d_avg"],
+        mode="lines", name="7-Day Avg", line={"color": "#EF553B", "width": 2},
+    ))
+    fig_aband.update_layout(
+        title="Abandonment Rate % — Daily vs 7-Day Rolling Average",
+        xaxis_title="Day Index", yaxis_title="Abandonment Rate %",
+        template="plotly_dark", legend={"orientation": "h"},
     )
 
-    fig_fcr = px.bar(
-        summary, x="source_centre", y="fcr_rate_pct", color="source_centre",
-        title="First-Contact Resolution Rate by Centre",
-        labels={"source_centre": "Centre", "fcr_rate_pct": "FCR Rate %"},
-        template="plotly_dark",
+    fig_handle = go.Figure()
+    fig_handle.add_trace(go.Scatter(
+        x=df["day_index"], y=df["avg_answer_speed_secs"],
+        mode="lines", name="Avg Answer Speed (s)", line={"color": "#AB63FA"},
+    ))
+    fig_handle.add_trace(go.Scatter(
+        x=df["day_index"], y=df["avg_talk_duration_secs"],
+        mode="lines", name="Avg Talk Duration (s)", line={"color": "#FFA15A"},
+    ))
+    fig_handle.add_trace(go.Scatter(
+        x=df["day_index"], y=df["avg_waiting_time_secs"],
+        mode="lines", name="Avg Waiting Time (s)", line={"color": "#19D3F3"},
+    ))
+    fig_handle.update_layout(
+        title="Average Handling Times Over Time",
+        xaxis_title="Day Index", yaxis_title="Seconds",
+        template="plotly_dark", legend={"orientation": "h"},
     )
 
-    fig_sat = px.bar(
-        summary, x="source_centre", y="avg_satisfaction", color="source_centre",
-        title="Avg Satisfaction Score by Centre",
-        labels={"source_centre": "Centre", "avg_satisfaction": "Avg Satisfaction"},
-        template="plotly_dark",
-    )
-
-    table = dash_table.DataTable(
-        data=summary.to_dict("records"),
-        columns=[{"name": c, "id": c} for c in summary.columns],
-        style_table={"overflowX": "auto"},
-        style_header={"backgroundColor": "#303030", "color": "white", "fontWeight": "bold"},
-        style_cell={"backgroundColor": "#1e1e1e", "color": "white", "textAlign": "center"},
-        page_size=10,
-    )
-
-    return fig_bar, fig_radar, fig_fcr, fig_sat, table
+    return fig_answer, fig_sla, fig_vol, fig_aband, fig_handle

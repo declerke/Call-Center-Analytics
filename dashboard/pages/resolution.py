@@ -38,22 +38,6 @@ layout = dbc.Container([
 ], fluid=True)
 
 
-def build_funnel(df: pd.DataFrame, centre: str, title: str):
-    sub = df[df["source_centre"] == centre]
-    if sub.empty:
-        return px.bar(title=f"{title} — no data", template="plotly_dark")
-    total = int(sub["total_calls"].sum())
-    answered = int(sub["answered_calls"].sum())
-    resolved = int(sub["resolved_calls"].sum())
-    fig = go.Figure(go.Funnel(
-        y=["Total Calls", "Answered", "Resolved"],
-        x=[total, answered, resolved],
-        textinfo="value+percent initial",
-    ))
-    fig.update_layout(title=title, template="plotly_dark")
-    return fig
-
-
 @callback(
     Output("res-funnel-sat", "figure"),
     Output("res-funnel-pwc", "figure"),
@@ -65,13 +49,74 @@ def build_funnel(df: pd.DataFrame, centre: str, title: str):
 def update(_):
     df_topic = query("SELECT * FROM marts.mart_topic_analysis")
     df_cohort = query("SELECT * FROM marts.mart_satisfaction_cohorts")
+    df_ops = query("""
+        SELECT
+            ROUND(AVG(answer_rate_pct), 1)        AS avg_answer_rate,
+            ROUND(AVG(service_level_pct), 1)      AS avg_service_level,
+            ROUND(AVG(abandonment_rate_pct), 1)   AS avg_abandonment,
+            SUM(incoming_calls)                    AS total_incoming,
+            SUM(answered_calls)                    AS total_answered,
+            SUM(abandoned_calls)                   AS total_abandoned
+        FROM marts.mart_daily_operations
+    """)
 
     if df_topic.empty:
         empty = px.bar(title="No data yet", template="plotly_dark")
         return empty, empty, empty, empty, empty
 
-    fig_sat_funnel = build_funnel(df_topic, "satvicoder", "Satvicoder Centre — Call Funnel")
-    fig_pwc_funnel = build_funnel(df_topic, "pwc", "PWC Centre — Call Funnel")
+    # Satvicoder operational summary (indicator panel)
+    if not df_ops.empty and df_ops["total_incoming"].iloc[0]:
+        row = df_ops.iloc[0]
+        fig_sat_funnel = go.Figure()
+        fig_sat_funnel.add_trace(go.Indicator(
+            mode="number+delta",
+            value=float(row["avg_answer_rate"]),
+            title={"text": "Avg Answer Rate %<br><span style='font-size:0.8em'>1,251 operational days</span>"},
+            domain={"x": [0, 0.5], "y": [0.6, 1]},
+            number={"suffix": "%"},
+        ))
+        fig_sat_funnel.add_trace(go.Indicator(
+            mode="number",
+            value=float(row["avg_service_level"]),
+            title={"text": "Avg Service Level % (20s)"},
+            domain={"x": [0.5, 1], "y": [0.6, 1]},
+            number={"suffix": "%"},
+        ))
+        fig_sat_funnel.add_trace(go.Indicator(
+            mode="number",
+            value=float(row["avg_abandonment"]),
+            title={"text": "Avg Abandonment Rate %"},
+            domain={"x": [0, 0.5], "y": [0.1, 0.5]},
+            number={"suffix": "%"},
+        ))
+        fig_sat_funnel.add_trace(go.Indicator(
+            mode="number",
+            value=int(row["total_incoming"]),
+            title={"text": "Total Incoming Calls"},
+            domain={"x": [0.5, 1], "y": [0.1, 0.5]},
+            number={"valueformat": ","},
+        ))
+        fig_sat_funnel.update_layout(
+            title="Satvicoder Centre — Operational Summary",
+            template="plotly_dark",
+        )
+    else:
+        fig_sat_funnel = px.bar(title="Satvicoder data unavailable", template="plotly_dark")
+
+    # PWC call funnel
+    pwc = df_topic[df_topic["source_centre"] == "pwc"]
+    if not pwc.empty:
+        total = int(pwc["total_calls"].sum())
+        answered = int(pwc["answered_calls"].sum())
+        resolved = int(pwc["resolved_calls"].sum())
+        fig_pwc_funnel = go.Figure(go.Funnel(
+            y=["Total Calls", "Answered", "Resolved"],
+            x=[total, answered, resolved],
+            textinfo="value+percent initial",
+        ))
+        fig_pwc_funnel.update_layout(title="PWC Centre — Call Funnel", template="plotly_dark")
+    else:
+        fig_pwc_funnel = px.bar(title="PWC data unavailable", template="plotly_dark")
 
     fig_topic_bar = px.bar(
         df_topic, x="topic", y="resolution_rate_pct", color="source_centre", barmode="group",

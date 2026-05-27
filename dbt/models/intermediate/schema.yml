@@ -1,19 +1,20 @@
 version: 2
 
 models:
-  - name: int_unified_calls
-    description: Union of both call centre staging tables — 10,000 rows with source_centre dimension
+  - name: int_call_records
+    description: PWC individual call records with derived SLA and handle-time columns — 5,000 rows
     columns:
       - name: call_id
-        description: Call identifier (unique within each source_centre)
+        description: Unique call identifier
         tests:
           - not_null
+          - unique
       - name: source_centre
-        description: Dataset origin — satvicoder or pwc
+        description: Dataset origin — always 'pwc' in this model
         tests:
           - not_null
           - accepted_values:
-              values: ['satvicoder', 'pwc']
+              values: ['pwc']
       - name: agent
         description: Agent name
         tests:
@@ -28,5 +29,38 @@ models:
           - not_null
       - name: is_resolved
         description: Call resolved flag
+        tests:
+          - not_null
+      - name: meets_sla_30s
+        description: TRUE if call was answered within 30 seconds — NULL for unanswered calls
+
+  - name: int_daily_operations
+    description: Satvicoder daily operations with derived abandonment rate and handle-time metrics — 1,251 rows
+    columns:
+      - name: day_index
+        description: Sequential day index
+        tests:
+          - not_null
+          - unique
+      - name: source_centre
+        description: Dataset origin — always 'satvicoder' in this model
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['satvicoder']
+      - name: incoming_calls
+        description: Total calls for the day
+        tests:
+          - not_null
+      - name: answer_rate_pct
+        description: Answer rate percentage
+        tests:
+          - not_null
+      - name: abandonment_rate_pct
+        description: Derived abandonment rate percentage
+        tests:
+          - not_null
+      - name: service_level_pct
+        description: Service level percentage (calls answered within 20s)
         tests:
           - not_null

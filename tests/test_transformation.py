@@ -1,5 +1,5 @@
 """
-Transformation tests — verify dbt mart tables in DuckDB after dbt run completes.
+Transformation tests — verify dbt models in DuckDB after dbt run completes.
 Run after the Airflow DAG's dbt_run_marts task.
 """
 
@@ -22,17 +22,35 @@ def con():
     conn.close()
 
 
-def test_unified_calls_total_rows(con):
-    count = con.execute("SELECT COUNT(*) FROM intermediate.int_unified_calls").fetchone()[0]
-    assert count == 10000, f"Expected 10,000 unified rows (5,000 × 2), got {count}"
+# ── Intermediate layer ────────────────────────────────────────────────────────
+
+def test_call_records_row_count(con):
+    count = con.execute("SELECT COUNT(*) FROM intermediate.int_call_records").fetchone()[0]
+    assert count == 5000, f"Expected 5,000 PWC call records, got {count}"
 
 
-def test_unified_calls_source_centres(con):
+def test_daily_operations_row_count(con):
+    count = con.execute(
+        "SELECT COUNT(*) FROM intermediate.int_daily_operations"
+    ).fetchone()[0]
+    assert count == 1251, f"Expected 1,251 satvicoder daily rows, got {count}"
+
+
+def test_daily_operations_source_centre(con):
     centres = {r[0] for r in con.execute(
-        "SELECT DISTINCT source_centre FROM intermediate.int_unified_calls"
+        "SELECT DISTINCT source_centre FROM intermediate.int_daily_operations"
     ).fetchall()}
-    assert centres == {"satvicoder", "pwc"}, f"Unexpected source centres: {centres}"
+    assert centres == {"satvicoder"}, f"Unexpected source centres: {centres}"
 
+
+def test_call_records_source_centre(con):
+    centres = {r[0] for r in con.execute(
+        "SELECT DISTINCT source_centre FROM intermediate.int_call_records"
+    ).fetchall()}
+    assert centres == {"pwc"}, f"Unexpected source centres: {centres}"
+
+
+# ── Mart layer — PWC call records ─────────────────────────────────────────────
 
 def test_agent_performance_no_null_agents(con):
     nulls = con.execute(
@@ -49,6 +67,14 @@ def test_agent_performance_answer_rate_range(con):
     """).fetchone()
     assert result[0] >= 0, f"Answer rate below 0: {result[0]}"
     assert result[1] <= 100, f"Answer rate above 100: {result[1]}"
+
+
+def test_agent_performance_fcr_rate_non_negative(con):
+    neg = con.execute("""
+        SELECT COUNT(*) FROM marts.mart_agent_performance
+        WHERE fcr_rate_pct < 0
+    """).fetchone()[0]
+    assert neg == 0, f"Found {neg} rows with negative FCR rate"
 
 
 def test_sla_compliance_pct_range(con):
@@ -87,16 +113,44 @@ def test_satisfaction_cohorts_valid_bands(con):
     assert not invalid, f"Unknown satisfaction bands: {invalid}"
 
 
-def test_topic_analysis_both_centres(con):
-    centres = {r[0] for r in con.execute(
-        "SELECT DISTINCT source_centre FROM marts.mart_topic_analysis"
-    ).fetchall()}
-    assert centres == {"satvicoder", "pwc"}, f"Missing centres in topic analysis: {centres}"
+# ── Mart layer — Satvicoder daily operations ──────────────────────────────────
+
+def test_daily_operations_mart_row_count(con):
+    count = con.execute("SELECT COUNT(*) FROM marts.mart_daily_operations").fetchone()[0]
+    assert count == 1251, f"Expected 1,251 daily operations rows, got {count}"
 
 
-def test_agent_performance_fcr_rate_non_negative(con):
+def test_daily_operations_answer_rate_range(con):
+    result = con.execute("""
+        SELECT MIN(answer_rate_pct), MAX(answer_rate_pct)
+        FROM marts.mart_daily_operations
+    """).fetchone()
+    assert result[0] >= 0, f"Answer rate below 0: {result[0]}"
+    assert result[1] <= 100, f"Answer rate above 100: {result[1]}"
+
+
+def test_daily_operations_service_level_range(con):
+    result = con.execute("""
+        SELECT MIN(service_level_pct), MAX(service_level_pct)
+        FROM marts.mart_daily_operations
+    """).fetchone()
+    assert result[0] >= 0, f"Service level below 0: {result[0]}"
+    assert result[1] <= 100, f"Service level above 100: {result[1]}"
+
+
+def test_daily_operations_abandonment_non_negative(con):
     neg = con.execute("""
-        SELECT COUNT(*) FROM marts.mart_agent_performance
-        WHERE fcr_rate_pct < 0
+        SELECT COUNT(*) FROM marts.mart_daily_operations
+        WHERE abandonment_rate_pct < 0
     """).fetchone()[0]
-    assert neg == 0, f"Found {neg} rows with negative FCR rate"
+    assert neg == 0, f"Found {neg} rows with negative abandonment rate"
+
+
+def test_daily_operations_rolling_avgs_not_null(con):
+    nulls = con.execute("""
+        SELECT COUNT(*) FROM marts.mart_daily_operations
+        WHERE answer_rate_7d_avg IS NULL
+        OR service_level_7d_avg IS NULL
+        OR abandonment_rate_7d_avg IS NULL
+    """).fetchone()[0]
+    assert nulls == 0, f"Found {nulls} rows with null rolling averages"

@@ -1,48 +1,44 @@
 version: 2
 
 models:
-  - name: stg_satvicoder_calls
-    description: Normalised satvicoder call records — Y/N flags cast to boolean, durations in seconds, source_centre tagged
+  - name: stg_satvicoder_daily
+    description: Satvicoder daily aggregate KPIs — 1,251 rows of operational metrics normalised to consistent types
     columns:
-      - name: call_id
-        description: Unique call identifier
+      - name: day_index
+        description: Sequential row index (surrogate time dimension)
         tests:
           - not_null
           - unique
-      - name: agent
-        description: Agent name
+      - name: incoming_calls
+        description: Total incoming calls for the day
         tests:
           - not_null
-      - name: call_date
-        description: Date the call was placed
+      - name: answered_calls
+        description: Number of calls answered
         tests:
           - not_null
-      - name: topic
-        description: Call topic category
+      - name: abandoned_calls
+        description: Number of calls abandoned before answer
         tests:
           - not_null
-      - name: is_answered
-        description: Whether the call was answered
+      - name: answer_rate_pct
+        description: Answer rate as a percentage value (0–100)
         tests:
           - not_null
-          - accepted_values:
-              values: [true, false]
-      - name: is_resolved
-        description: Whether the call was resolved
+      - name: service_level_pct
+        description: Percentage of calls answered within 20 seconds
         tests:
           - not_null
-          - accepted_values:
-              values: [true, false]
-      - name: speed_of_answer_secs
-        description: Seconds from call arrival to agent answer
+      - name: avg_answer_speed_secs
+        description: Average answer speed in seconds
         tests:
           - not_null
       - name: avg_talk_duration_secs
         description: Average talk duration in seconds
         tests:
           - not_null
-      - name: satisfaction_rating
-        description: Customer satisfaction score (1–5)
+      - name: avg_waiting_time_secs
+        description: Average waiting time in seconds
         tests:
           - not_null
       - name: source_centre
@@ -53,7 +49,7 @@ models:
               values: ['satvicoder']
 
   - name: stg_pwc_calls
-    description: Normalised PWC call records — same schema as stg_satvicoder_calls, source_centre = 'pwc'
+    description: Normalised PWC individual call records — 5,000 rows with agent, topic, and CSAT fields
     columns:
       - name: call_id
         description: Unique call identifier
@@ -85,17 +81,11 @@ models:
           - accepted_values:
               values: [true, false]
       - name: speed_of_answer_secs
-        description: Seconds from call arrival to agent answer
-        tests:
-          - not_null
+        description: Seconds from call arrival to agent answer — NULL for unanswered calls
       - name: avg_talk_duration_secs
-        description: Average talk duration in seconds
-        tests:
-          - not_null
+        description: Average talk duration in seconds — NULL for unanswered calls
       - name: satisfaction_rating
-        description: Customer satisfaction score (1–5)
-        tests:
-          - not_null
+        description: Customer satisfaction score (1–5) — NULL when not rated or unanswered
       - name: source_centre
         description: Dataset origin tag
         tests:

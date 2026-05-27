@@ -6,6 +6,6 @@ sources:
     description: Raw call center records ingested from Kaggle by Airflow
     tables:
       - name: raw_satvicoder_calls
-        description: satvicoder/call-center-data — 5,000 individual call records (CSV)
+        description: satvicoder/call-center-data — 1,251 daily aggregate KPI rows (CSV)
       - name: raw_pwc_calls
         description: gayatriwagadre/pwc-call-centre-analysis — 5,000 call records (XLSX)

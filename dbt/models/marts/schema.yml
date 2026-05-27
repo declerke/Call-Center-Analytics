@@ -2,14 +2,14 @@ version: 2
 
 models:
   - name: mart_agent_performance
-    description: Per-agent KPIs — answer rate, FCR, avg handle time, satisfaction — by source centre
+    description: Per-agent KPIs — answer rate, FCR, avg handle time, satisfaction (PWC data)
     columns:
       - name: agent
         description: Agent name
         tests:
           - not_null
       - name: source_centre
-        description: Dataset origin — satvicoder or pwc
+        description: Dataset origin
         tests:
           - not_null
       - name: total_calls
@@ -26,7 +26,7 @@ models:
           - not_null
 
   - name: mart_sla_compliance
-    description: SLA compliance by date / hour / topic — 30-second answer threshold
+    description: SLA compliance by date / hour / topic — 30-second answer threshold (PWC data)
     columns:
       - name: source_centre
         description: Dataset origin
@@ -50,7 +50,7 @@ models:
           - not_null
 
   - name: mart_topic_analysis
-    description: Call volume, answer rate, resolution rate, and satisfaction by topic and centre
+    description: Call volume, answer rate, resolution rate, and satisfaction by topic (PWC data)
     columns:
       - name: topic
         description: Call topic category
@@ -74,7 +74,7 @@ models:
           - not_null
 
   - name: mart_hourly_patterns
-    description: Call volume and SLA compliance by hour of day — identifies peak load windows
+    description: Call volume and SLA compliance by hour of day — identifies peak load windows (PWC data)
     columns:
       - name: source_centre
         description: Dataset origin
@@ -98,7 +98,7 @@ models:
           - not_null
 
   - name: mart_satisfaction_cohorts
-    description: Call count by satisfaction band, topic, month, and centre — drives CSAT trend analysis
+    description: Call count by satisfaction band, topic, and month — drives CSAT trend analysis (PWC data)
     columns:
       - name: source_centre
         description: Dataset origin
@@ -122,5 +122,38 @@ models:
           - not_null
       - name: topic
         description: Call topic for this cohort
+        tests:
+          - not_null
+
+  - name: mart_daily_operations
+    description: Satvicoder daily KPIs with 7-day rolling averages for trend analysis
+    columns:
+      - name: day_index
+        description: Sequential day index
+        tests:
+          - not_null
+          - unique
+      - name: source_centre
+        description: Dataset origin — always 'satvicoder'
+        tests:
+          - not_null
+      - name: incoming_calls
+        description: Total incoming calls for the day
+        tests:
+          - not_null
+      - name: answer_rate_pct
+        description: Answer rate percentage
+        tests:
+          - not_null
+      - name: service_level_pct
+        description: Service level percentage (calls answered within 20s)
+        tests:
+          - not_null
+      - name: abandonment_rate_pct
+        description: Derived abandonment rate percentage
+        tests:
+          - not_null
+      - name: answer_rate_7d_avg
+        description: 7-day rolling average of answer rate
         tests:
           - not_null

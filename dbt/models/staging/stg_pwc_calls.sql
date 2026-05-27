@@ -7,7 +7,7 @@ renamed AS (
         -- PWC uses "Call Id" (lowercase d) vs satvicoder "Call ID" — normalise to call_id
         CAST("Call Id" AS VARCHAR)                                              AS call_id,
         TRIM(CAST("Agent" AS VARCHAR))                                          AS agent,
-        STRPTIME(CAST("Date" AS VARCHAR), '%m/%d/%Y')::DATE                     AS call_date,
+        CAST("Date" AS DATE)                                                    AS call_date,
         CAST("Time" AS TIME)                                                    AS call_time,
         TRIM(CAST("Topic" AS VARCHAR))                                          AS topic,
         UPPER(TRIM(CAST("Answered (Y/N)" AS VARCHAR))) = 'Y'                    AS is_answered,

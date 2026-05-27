@@ -1,5 +1,5 @@
 WITH calls AS (
-    SELECT * FROM {{ ref('int_unified_calls') }}
+    SELECT * FROM {{ ref('int_call_records') }}
 )
 
 SELECT
