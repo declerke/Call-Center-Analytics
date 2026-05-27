@@ -19,6 +19,9 @@ Two structurally incompatible call centre datasets are ingested from Kaggle, tra
 
 ## Screenshots
 
+### Airflow DAG — 9/9 SUCCESS, dbt 72/72 Tests Passing
+![Successful DAG runs](assets/succesful%20dag%20runs.png)
+
 ### Executive Overview
 ![Executive Overview](assets/screenshot_overview.png)
 
