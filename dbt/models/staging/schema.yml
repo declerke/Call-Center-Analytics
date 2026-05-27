@@ -1,0 +1,104 @@
+version: 2
+
+models:
+  - name: stg_satvicoder_calls
+    description: Normalised satvicoder call records — Y/N flags cast to boolean, durations in seconds, source_centre tagged
+    columns:
+      - name: call_id
+        description: Unique call identifier
+        tests:
+          - not_null
+          - unique
+      - name: agent
+        description: Agent name
+        tests:
+          - not_null
+      - name: call_date
+        description: Date the call was placed
+        tests:
+          - not_null
+      - name: topic
+        description: Call topic category
+        tests:
+          - not_null
+      - name: is_answered
+        description: Whether the call was answered
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: is_resolved
+        description: Whether the call was resolved
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: speed_of_answer_secs
+        description: Seconds from call arrival to agent answer
+        tests:
+          - not_null
+      - name: avg_talk_duration_secs
+        description: Average talk duration in seconds
+        tests:
+          - not_null
+      - name: satisfaction_rating
+        description: Customer satisfaction score (1–5)
+        tests:
+          - not_null
+      - name: source_centre
+        description: Dataset origin tag
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['satvicoder']
+
+  - name: stg_pwc_calls
+    description: Normalised PWC call records — same schema as stg_satvicoder_calls, source_centre = 'pwc'
+    columns:
+      - name: call_id
+        description: Unique call identifier
+        tests:
+          - not_null
+          - unique
+      - name: agent
+        description: Agent name
+        tests:
+          - not_null
+      - name: call_date
+        description: Date the call was placed
+        tests:
+          - not_null
+      - name: topic
+        description: Call topic category
+        tests:
+          - not_null
+      - name: is_answered
+        description: Whether the call was answered
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: is_resolved
+        description: Whether the call was resolved
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: speed_of_answer_secs
+        description: Seconds from call arrival to agent answer
+        tests:
+          - not_null
+      - name: avg_talk_duration_secs
+        description: Average talk duration in seconds
+        tests:
+          - not_null
+      - name: satisfaction_rating
+        description: Customer satisfaction score (1–5)
+        tests:
+          - not_null
+      - name: source_centre
+        description: Dataset origin tag
+        tests:
+          - not_null
+          - accepted_values:
+              values: ['pwc']

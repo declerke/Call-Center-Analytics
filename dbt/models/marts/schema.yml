@@ -1,0 +1,126 @@
+version: 2
+
+models:
+  - name: mart_agent_performance
+    description: Per-agent KPIs — answer rate, FCR, avg handle time, satisfaction — by source centre
+    columns:
+      - name: agent
+        description: Agent name
+        tests:
+          - not_null
+      - name: source_centre
+        description: Dataset origin — satvicoder or pwc
+        tests:
+          - not_null
+      - name: total_calls
+        description: Total calls assigned to this agent
+        tests:
+          - not_null
+      - name: answer_rate_pct
+        description: Percentage of assigned calls answered
+        tests:
+          - not_null
+      - name: fcr_rate_pct
+        description: First-contact resolution rate among answered calls
+        tests:
+          - not_null
+
+  - name: mart_sla_compliance
+    description: SLA compliance by date / hour / topic — 30-second answer threshold
+    columns:
+      - name: source_centre
+        description: Dataset origin
+        tests:
+          - not_null
+      - name: call_date
+        description: Date of calls in this group
+        tests:
+          - not_null
+      - name: call_hour
+        description: Hour of day (0–23)
+        tests:
+          - not_null
+      - name: total_calls
+        description: Total calls in this date/hour/topic group
+        tests:
+          - not_null
+      - name: sla_compliance_pct
+        description: Percentage of answered calls meeting the 30-second SLA
+        tests:
+          - not_null
+
+  - name: mart_topic_analysis
+    description: Call volume, answer rate, resolution rate, and satisfaction by topic and centre
+    columns:
+      - name: topic
+        description: Call topic category
+        tests:
+          - not_null
+      - name: source_centre
+        description: Dataset origin
+        tests:
+          - not_null
+      - name: total_calls
+        description: Total calls for this topic
+        tests:
+          - not_null
+      - name: resolution_rate_pct
+        description: First-contact resolution rate for this topic
+        tests:
+          - not_null
+      - name: avg_satisfaction
+        description: Average customer satisfaction score for this topic
+        tests:
+          - not_null
+
+  - name: mart_hourly_patterns
+    description: Call volume and SLA compliance by hour of day — identifies peak load windows
+    columns:
+      - name: source_centre
+        description: Dataset origin
+        tests:
+          - not_null
+      - name: call_hour
+        description: Hour of day (0–23)
+        tests:
+          - not_null
+      - name: total_calls
+        description: Total calls arriving in this hour
+        tests:
+          - not_null
+      - name: answered_calls
+        description: Calls answered in this hour
+        tests:
+          - not_null
+      - name: avg_satisfaction
+        description: Average satisfaction for calls in this hour
+        tests:
+          - not_null
+
+  - name: mart_satisfaction_cohorts
+    description: Call count by satisfaction band, topic, month, and centre — drives CSAT trend analysis
+    columns:
+      - name: source_centre
+        description: Dataset origin
+        tests:
+          - not_null
+      - name: satisfaction_band
+        description: Satisfaction label mapped from 1–5 numeric rating
+        tests:
+          - not_null
+          - accepted_values:
+              values:
+                - 'Promoter (5)'
+                - 'Satisfied (4)'
+                - 'Neutral (3)'
+                - 'Dissatisfied (2)'
+                - 'Detractor (1)'
+                - 'Not Rated'
+      - name: call_count
+        description: Number of calls in this cohort
+        tests:
+          - not_null
+      - name: topic
+        description: Call topic for this cohort
+        tests:
+          - not_null

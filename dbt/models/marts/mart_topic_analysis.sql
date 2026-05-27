@@ -1,0 +1,21 @@
+WITH calls AS (
+    SELECT * FROM {{ ref('int_unified_calls') }}
+)
+
+SELECT
+    source_centre,
+    topic,
+    COUNT(*)                                                                                        AS total_calls,
+    SUM(CASE WHEN is_answered THEN 1 ELSE 0 END)                                                   AS answered_calls,
+    SUM(CASE WHEN is_resolved AND is_answered THEN 1 ELSE 0 END)                                   AS resolved_calls,
+    ROUND(
+        SUM(CASE WHEN is_answered THEN 1 ELSE 0 END)::DOUBLE / COUNT(*) * 100, 2
+    )                                                                                               AS answer_rate_pct,
+    ROUND(
+        SUM(CASE WHEN is_resolved AND is_answered THEN 1 ELSE 0 END)::DOUBLE
+        / NULLIF(SUM(CASE WHEN is_answered THEN 1 ELSE 0 END), 0) * 100, 2
+    )                                                                                               AS resolution_rate_pct,
+    ROUND(AVG(CASE WHEN satisfaction_rating > 0 THEN satisfaction_rating END), 2)                  AS avg_satisfaction,
+    ROUND(AVG(CASE WHEN is_answered THEN speed_of_answer_secs END), 2)                             AS avg_speed_of_answer_secs
+FROM calls
+GROUP BY source_centre, topic

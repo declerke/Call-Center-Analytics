@@ -1,0 +1,23 @@
+name: call_center_analytics
+version: '1.0.0'
+config-version: 2
+
+profile: call_center_analytics
+
+model-paths: ['models']
+test-paths: ['tests']
+macro-paths: ['macros']
+target-path: 'target'
+clean-targets: ['target', 'dbt_packages']
+
+models:
+  call_center_analytics:
+    staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table

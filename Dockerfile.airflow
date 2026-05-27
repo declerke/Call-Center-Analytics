@@ -1,0 +1,22 @@
+FROM apache/airflow:3.0.0-python3.11
+
+USER root
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl git \
+    && apt-get clean && rm -rf /var/lib/apt/lists/* \
+    && mkdir -p /opt/airflow/data/raw/satvicoder \
+    && mkdir -p /opt/airflow/data/raw/pwc \
+    && chown -R airflow:root /opt/airflow/data \
+    && chmod -R 775 /opt/airflow/data
+
+USER airflow
+
+RUN pip install --no-cache-dir \
+    duckdb==1.2.2 \
+    dbt-duckdb==1.9.2 \
+    kaggle==1.7.4 \
+    openpyxl==3.1.5 \
+    pandas==2.1.4 \
+    numpy==1.26.4 \
+    requests==2.32.3 \
+    python-dotenv==1.0.1

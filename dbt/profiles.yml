@@ -1,0 +1,7 @@
+call_center_analytics:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: "{{ env_var('DUCKDB_PATH', '/opt/airflow/data/call_center.duckdb') }}"
+      threads: 1
