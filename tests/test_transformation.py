@@ -3,23 +3,12 @@ Transformation tests — verify dbt models in DuckDB after dbt run completes.
 Run after the Airflow DAG's dbt_run_marts task.
 """
 
-import os
-import duckdb
 import pytest
-
-DUCKDB_PATH = os.getenv("DUCKDB_PATH", "/opt/airflow/data/call_center.duckdb")
 
 VALID_SATISFACTION_BANDS = {
     "Promoter (5)", "Satisfied (4)", "Neutral (3)",
     "Dissatisfied (2)", "Detractor (1)", "Not Rated",
 }
-
-
-@pytest.fixture(scope="module")
-def con():
-    conn = duckdb.connect(DUCKDB_PATH, read_only=True)
-    yield conn
-    conn.close()
 
 
 # ── Intermediate layer ────────────────────────────────────────────────────────

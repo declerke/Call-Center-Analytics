@@ -1,26 +1,16 @@
-import os
 import dash
-import duckdb
 import pandas as pd
 import plotly.express as px
 import dash_bootstrap_components as dbc
 from dash import html, dcc, callback, Input, Output
 
-dash.register_page(__name__, path="/", name="Overview", order=0)
+from utils import query
 
-DUCKDB_PATH = os.getenv("DUCKDB_PATH", "/opt/airflow/data/call_center.duckdb")
+dash.register_page(__name__, path="/", name="Overview", order=0)
 
 CARD_STYLE = {"textAlign": "center", "padding": "1rem"}
 NO_DATA = html.Div("Pipeline has not run yet — trigger the Airflow DAG first.",
                    className="text-warning mt-4 text-center")
-
-
-def query(sql: str) -> pd.DataFrame:
-    try:
-        with duckdb.connect(DUCKDB_PATH, read_only=True) as con:
-            return con.execute(sql).df()
-    except Exception:
-        return pd.DataFrame()
 
 
 layout = dbc.Container([

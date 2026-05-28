@@ -141,6 +141,6 @@ with DAG(
 
     # Downloads run in parallel; ingests serialized via duckdb_pool
     download_satvicoder >> ingest_satvicoder
-    download_pwc >> ingest_satvicoder
+    download_pwc >> ingest_pwc
     ingest_satvicoder >> ingest_pwc
     ingest_pwc >> dbt_deps >> dbt_staging >> dbt_intermediate >> dbt_marts >> dbt_test

@@ -1,24 +1,15 @@
-import os
 import dash
-import duckdb
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 from dash import html, dcc, callback, Input, Output
 
+from utils import query
+
 dash.register_page(__name__, path="/resolution", name="Resolution Funnel", order=4)
 
-DUCKDB_PATH = os.getenv("DUCKDB_PATH", "/opt/airflow/data/call_center.duckdb")
 NO_DATA = html.Div("Pipeline has not run yet.", className="text-warning mt-4 text-center")
-
-
-def query(sql: str) -> pd.DataFrame:
-    try:
-        with duckdb.connect(DUCKDB_PATH, read_only=True) as con:
-            return con.execute(sql).df()
-    except Exception:
-        return pd.DataFrame()
 
 
 layout = dbc.Container([
@@ -65,7 +56,7 @@ def update(_):
         return empty, empty, empty, empty, empty
 
     # Satvicoder operational summary (indicator panel)
-    if not df_ops.empty and df_ops["total_incoming"].iloc[0]:
+    if not df_ops.empty and df_ops["total_incoming"].iloc[0] is not None:
         row = df_ops.iloc[0]
         fig_sat_funnel = go.Figure()
         fig_sat_funnel.add_trace(go.Indicator(

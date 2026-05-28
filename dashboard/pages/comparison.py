@@ -1,24 +1,15 @@
-import os
 import dash
-import duckdb
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import dash_bootstrap_components as dbc
 from dash import html, dcc, callback, Input, Output
 
+from utils import query
+
 dash.register_page(__name__, path="/comparison", name="Operations Trends", order=1)
 
-DUCKDB_PATH = os.getenv("DUCKDB_PATH", "/opt/airflow/data/call_center.duckdb")
 NO_DATA = html.Div("Pipeline has not run yet.", className="text-warning mt-4 text-center")
-
-
-def query(sql: str) -> pd.DataFrame:
-    try:
-        with duckdb.connect(DUCKDB_PATH, read_only=True) as con:
-            return con.execute(sql).df()
-    except Exception:
-        return pd.DataFrame()
 
 
 layout = dbc.Container([

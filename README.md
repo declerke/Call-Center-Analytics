@@ -34,7 +34,7 @@ Call Center Analytics treats these datasets honestly. The Satvicoder dataset (1,
 
 5. **dbt staging — separate paths per schema** — `stg_satvicoder_daily` casts the daily aggregate columns: HH:MM:SS duration strings are converted to seconds via `EPOCH(CAST("Answer Speed (AVG)" AS TIME))`, percent columns use `REPLACE(CAST(col AS VARCHAR), '%', '')` to strip any `%` sign before casting to DOUBLE; `stg_pwc_calls` casts the individual call records: dates use `CAST("Date" AS DATE)` (not STRPTIME with `%m/%d/%Y` — the actual data format is ISO), Y/N flags become booleans via `UPPER(TRIM(...)) = 'Y'`, and `EPOCH(CAST("AvgTalkDuration" AS TIME))` converts HH:MM:SS to seconds; both models are materialised as views; the two schemas are never unioned because a daily aggregate row has no agent and no satisfaction score
 
-6. **dbt intermediate** — `int_daily_operations` adds `abandonment_rate_pct` as `abandoned_calls / incoming_calls * 100` and `avg_handle_time_secs` as `avg_answer_speed_secs + avg_talk_duration_secs`; `int_call_records` adds `meets_sla_30s` (boolean, NULL for unanswered calls) and `total_handle_secs`; both views feed their respective mart chains
+6. **dbt intermediate** — `int_daily_operations` adds `abandonment_rate_pct` as `abandoned_calls / incoming_calls * 100` and `avg_handle_time_secs` as `avg_answer_speed_secs + avg_talk_duration_secs`; `int_call_records` adds `meets_sla_30s` (boolean, FALSE for unanswered calls via `CASE WHEN is_answered`) and `total_handle_secs` (COALESCE-guarded to 0 for NULL components); both views feed their respective mart chains
 
 7. **dbt marts — six tables at query grain** — `mart_daily_operations` materialises daily KPIs with 7-day rolling averages for answer rate, service level, and abandonment rate using `AVG(...) OVER (ORDER BY day_index ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)`; the five PWC marts aggregate at agent, date/hour/topic, topic, hour-of-day, and satisfaction-band grain; `mart_sla_compliance` uses `COALESCE(met/answered * 100, 0)` to return 0 rather than NULL for the 315 date/hour/topic buckets where no calls were answered
 
@@ -133,7 +133,7 @@ Both downloaded at DAG runtime via `GET https://www.kaggle.com/api/v1/datasets/d
 
 - **`COALESCE(sla_compliance_pct, 0)` to prevent NULL schema test failures** — `mart_sla_compliance` groups at date × hour × topic grain. Buckets where all calls in that group were unanswered produce `SUM(answered) = 0`; the `NULLIF(0, 0)` in the denominator returns NULL, which propagates to NULL for `sla_compliance_pct`. The 315 such rows caused the `not_null` schema test to fail. `COALESCE(..., 0)` returns 0% SLA compliance for zero-answer buckets, which is the semantically correct interpretation (no answered calls means 0% of calls met the SLA), and keeps the column non-null for dashboard rendering.
 
-- **7-day rolling averages in `mart_daily_operations`** — raw daily operational KPIs in the Satvicoder dataset have high day-to-day variance that obscures trends when plotted as a time series. The window function `AVG(answer_rate_pct) OVER (ORDER BY day_index ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)` computes the rolling average in-database at materialisation time rather than in Pandas at render time — the mart stores both the raw daily value and the 7-day average, and the dashboard chart plots both as separate traces (raw as dotted line, rolling average as solid) so both the noise and the signal are visible simultaneously.
+- **7-day rolling averages in `mart_daily_operations`** — raw daily operational KPIs in the Satvicoder dataset have high day-to-day variance that obscures trends when plotted as a time series. The window function `AVG(answer_rate_pct) OVER (PARTITION BY source_centre ORDER BY day_index ROWS BETWEEN 6 PRECEDING AND CURRENT ROW)` computes the rolling average in-database at materialisation time rather than in Pandas at render time — `PARTITION BY source_centre` ensures rolling windows never cross dataset boundaries if a second operational source is ever added; the mart stores both the raw daily value and the 7-day average, and the dashboard chart plots both as separate traces (raw as dotted line, rolling average as solid) so both the noise and the signal are visible simultaneously.
 
 - **`duckdb_pool` (1 slot) for write serialisation** — DuckDB supports only one writer per file at a time. Without the pool, `ingest_satvicoder` and `ingest_pwc` run in parallel after their respective download tasks complete, and both attempt to open the same DuckDB file for writing simultaneously. The second one to acquire the file lock raises `IOException: Could not set lock on file` and the task fails. The Airflow pool enforces sequential execution of all write-path tasks at the scheduling layer — no code-level locking, no retry logic — while the Dash container's `read_only=True` connections can issue queries freely in parallel.
 
@@ -170,7 +170,7 @@ call-center-analytics/
 │       │   └── schema.yml               # 26 tests — nullable cols documented, not forced not_null
 │       ├── intermediate/
 │       │   ├── int_daily_operations.sql # Derives abandonment_rate_pct, avg_handle_time_secs
-│       │   ├── int_call_records.sql     # Adds meets_sla_30s (NULL for unanswered), total_handle_secs
+│       │   ├── int_call_records.sql     # Adds meets_sla_30s (FALSE for unanswered), total_handle_secs
 │       │   └── schema.yml               # 13 tests — unique day_index, accepted_values on source_centre
 │       └── marts/
 │           ├── mart_daily_operations.sql     # 7-day rolling avgs — answer rate, SLA, abandonment
@@ -184,6 +184,7 @@ call-center-analytics/
 │   ├── Dockerfile                        # Dash container — mounts duckdb-data volume read-only
 │   ├── requirements.txt                  # dash, dash-bootstrap-components, plotly, duckdb
 │   ├── app.py                            # Dash multi-page — use_pages=True, DARKLY theme, 0.0.0.0
+│   ├── utils.py                          # Shared query() helper + DUCKDB_PATH — used by all pages
 │   └── pages/
 │       ├── overview.py                   # KPI cards, daily volume line, topic pie, CSAT distribution
 │       ├── comparison.py                 # Operations Trends — satvicoder 7-day rolling avg charts
@@ -191,6 +192,7 @@ call-center-analytics/
 │       ├── sla.py                        # Daily SLA line (80% target), by-topic bar, hourly heatmap
 │       └── resolution.py                 # Satvicoder summary indicators + PWC funnel + CSAT trend
 ├── tests/
+│   ├── conftest.py                      # Shared DuckDB read-only fixture (module scope)
 │   ├── test_ingestion.py                # 9 pytest tests — row counts (1,251 + 5,000),
 │   │                                    #   column presence, PWC satisfaction range, answered values
 │   └── test_transformation.py          # 14 pytest tests — mart row counts, rate ranges (0–100),
@@ -264,7 +266,7 @@ call-center-analytics/
 | `stg_satvicoder_daily` | Staging | View | 1,251 | Casts HH:MM:SS duration strings to seconds via `EPOCH(CAST AS TIME)`; strips `%` from percent columns; NULL-filtered on `Incoming Calls` |
 | `stg_pwc_calls` | Staging | View | 5,000 | ISO date cast (`CAST("Date" AS DATE)`); Y/N → boolean; EPOCH for talk duration; 946 unanswered calls retain NULL for speed/duration/CSAT |
 | `int_daily_operations` | Intermediate | View | 1,251 | Adds `abandonment_rate_pct` and `avg_handle_time_secs`; sources from `stg_satvicoder_daily` only |
-| `int_call_records` | Intermediate | View | 5,000 | Adds `meets_sla_30s` (NULL for unanswered) and `total_handle_secs`; sources from `stg_pwc_calls` only |
+| `int_call_records` | Intermediate | View | 5,000 | Adds `meets_sla_30s` (FALSE for unanswered via `CASE WHEN is_answered`) and `total_handle_secs` (COALESCE-guarded); sources from `stg_pwc_calls` only |
 | `mart_daily_operations` | Mart | Table | 1,251 | Daily KPIs + `answer_rate_7d_avg`, `service_level_7d_avg`, `abandonment_rate_7d_avg` via window functions |
 | `mart_agent_performance` | Mart | Table | 8 | Per-agent totals, answer rate %, FCR rate %, avg handle time, avg satisfaction — NULL-safe via `CASE WHEN is_answered` |
 | `mart_sla_compliance` | Mart | Table | ~890 | Date × hour × topic grain; `COALESCE(sla_met/answered * 100, 0)` handles 315 zero-answer buckets |
@@ -274,7 +276,7 @@ call-center-analytics/
 
 **72 dbt schema tests — 72/72 PASS:**
 - Staging: `not_null` + `unique` on `day_index` and `call_id`; `accepted_values` on `source_centre` (`satvicoder`/`pwc`) and `is_answered`/`is_resolved` booleans; nullable columns (speed, talk duration, satisfaction) documented without `not_null` constraints
-- Intermediate: `not_null` + `unique` on `day_index` and `call_id`; `accepted_values` on `source_centre`; `meets_sla_30s` documented as nullable for unanswered calls
+- Intermediate: `not_null` + `unique` on `day_index` and `call_id`; `accepted_values` on `source_centre`; `meets_sla_30s` is always non-null (FALSE for unanswered calls, not NULL)
 - Marts: `not_null` on all KPI columns; `unique` on `day_index` in daily operations; `accepted_values` on the 6 satisfaction band strings; `not_null` on rolling average columns
 
 ---

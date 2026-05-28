@@ -3,11 +3,7 @@ Ingestion tests — verify raw tables exist in DuckDB with correct row counts an
 Run after the Airflow DAG's ingest_satvicoder and ingest_pwc tasks complete.
 """
 
-import os
-import duckdb
 import pytest
-
-DUCKDB_PATH = os.getenv("DUCKDB_PATH", "/opt/airflow/data/call_center.duckdb")
 
 SATVICODER_EXPECTED_COLS = {
     "Index", "Incoming Calls", "Answered Calls", "Answer Rate",
@@ -20,13 +16,6 @@ PWC_EXPECTED_COLS = {
     "Answered (Y/N)", "Resolved", "Speed of answer in seconds",
     "AvgTalkDuration", "Satisfaction rating",
 }
-
-
-@pytest.fixture(scope="module")
-def con():
-    conn = duckdb.connect(DUCKDB_PATH, read_only=True)
-    yield conn
-    conn.close()
 
 
 def test_raw_satvicoder_table_exists(con):
